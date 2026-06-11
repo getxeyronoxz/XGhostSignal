@@ -4,10 +4,48 @@ build-backend = "hatchling.build"
 
 [project]
 name = "xghostsignal"
-version = "0.1.0"
-description = "A local-first OSINT and cellular intelligence workbench"
+version = "0.2.0"
+description = "Local-first OSINT and Cellular Intelligence Workbench - A secure, offline tool for cell tower mapping, phone number intelligence, RF signal detection, and entity correlation"
 authors = [
-    { name = "Xeyronox" }
+    { name = "xeyronox", email = "263518006+getxeyronoxz@users.noreply.github.com" }
+]
+license = { text = "MIT" }
+keywords = [
+    "osint",
+    "sigint",
+    "cell-tower",
+    "gsm",
+    "lte",
+    "5g",
+    "rf-spectrum",
+    "rtl-sdr",
+    "ads-b",
+    "geospatial",
+    "forensics",
+    "security",
+    "network-analysis",
+    "local-first"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: System :: Networking :: Monitoring",
+    "Topic :: Utilities"
 ]
 dependencies = [
     "typer>=0.9.0",

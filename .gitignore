@@ -1,0 +1,97 @@
+# ========================================
+# XGhostSignal - Unified .gitignore
+# ========================================
+
+# ----------------------------------------
+# Security & Intelligence Data (DO NOT COMMIT)
+# ----------------------------------------
+*.db
+*.sqlite
+*.sqlite3
+xghostsignal.db
+reports/
+data/
+*.csv
+*.pcap
+*.pcapng
+*.kismet
+*.iq
+*.bin
+
+# ----------------------------------------
+# Secrets & Environment
+# ----------------------------------------
+.env
+.env.*
+!.env.example
+secrets/
+keys/
+
+# ----------------------------------------
+# Python / FastAPI Backend
+# ----------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+.venv/
+.env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Testing & Coverage
+.coverage
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+pytestdebug.log
+
+# ----------------------------------------
+# Next.js / React Frontend (web/)
+# ----------------------------------------
+web/node_modules/
+web/.next/
+web/out/
+web/build/
+web/.eslintcache
+web/next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ----------------------------------------
+# IDE & System Files
+# ----------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

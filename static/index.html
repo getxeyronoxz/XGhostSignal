@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XGhostSignal | Evidence Vault</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="app-container">
+        <!-- Sidebar -->
+        <aside id="sidebar">
+            <div class="brand">
+                <h1>XGhostSignal</h1>
+                <span class="pulse"></span>
+            </div>
+            <div class="stats-box">
+                <div class="stat">
+                    <span class="label">Total Entities</span>
+                    <span class="value" id="stat-entities">--</span>
+                </div>
+                <div class="stat">
+                    <span class="label">Observations</span>
+                    <span class="value" id="stat-towers">--</span>
+                </div>
+            </div>
+            <div class="search-box">
+                <input type="text" id="phone-input" placeholder="E.164 Phone (e.g. +1234)" />
+                <button id="btn-search" class="btn secondary">TRACK ENTITY</button>
+            </div>
+            <div class="controls">
+                <button id="btn-refresh" class="btn primary">Initiate Scan</button>
+            </div>
+            <div class="console">
+                <div class="console-header">SYSTEM.LOG</div>
+                <ul id="console-output">
+                    <li>[SYSTEM] Core loaded.</li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main id="workspace">
+            <div class="view-panel" id="map-view">
+                <div class="panel-header">GEOSPATIAL INTELLIGENCE</div>
+                <div id="map"></div>
+            </div>
+            <div class="view-panel" id="graph-view">
+                <div class="panel-header">ENTITY CORRELATION</div>
+                <div id="cy"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

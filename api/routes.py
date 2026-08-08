@@ -1,7 +1,11 @@
 """API Routes for XGhostSignal - Local-first OSINT and Cellular Intelligence Workbench"""
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+import os
+import re
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, field_validator
-from typing import List, Optional, Dict, Any
+from typing import Optional
 import networkx as nx
 import phonenumbers
 from phonenumbers import geocoder, carrier
@@ -9,12 +13,23 @@ from phonenumbers import geocoder, carrier
 from core.database import SessionLocal, Entity, Tower, Observation, Link, ImportLog
 from services.graph import build_entity_graph, get_cytoscape_data
 from services.export import (
-    get_all_entities, get_all_observations,
+    get_all_entities as fetch_all_entities,
+    get_all_observations as fetch_all_observations,
     export_csv, export_json, export_kml, export_markdown_report, export_database_dump
 )
 from services.reports import generate_dossier
 from plugins.default.leak_search import run as run_leak_check
 from plugins.default.phone_intel import run as run_phone_intel
+
+DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+
+
+def _safe_import_path(file_path: str) -> str:
+    """Resolve import path within DATA_ROOT to prevent path traversal."""
+    resolved = os.path.realpath(os.path.join(DATA_ROOT, file_path))
+    if not resolved.startswith(os.path.realpath(DATA_ROOT)):
+        raise ValueError("Path traversal detected")
+    return resolved
 
 router = APIRouter()
 
@@ -79,9 +94,7 @@ def get_detailed_stats():
             Observation.latitude != None
         ).count()
 
-        # Recent activity (last 24 hours)
-        from datetime import datetime, timedelta
-        yesterday = datetime.now() - timedelta(hours=24)
+        yesterday = datetime.now(timezone.utc) - timedelta(hours=24)
         recent_observations = session.query(Observation).filter(
             Observation.timestamp >= yesterday
         ).count()
@@ -406,43 +419,34 @@ def export_data(req: ExportRequest):
     """Export data to various formats (CSV, JSON, KML, Markdown)."""
     try:
         if req.all_entities:
-            entities = get_all_entities()
-            observations = get_all_observations()
+            entities = fetch_all_entities()
         elif req.entity_id:
             session = SessionLocal()
             try:
                 entity = session.query(Entity).filter_by(id=req.entity_id).first()
                 if not entity:
                     raise HTTPException(status_code=404, detail=f"Entity {req.entity_id} not found")
-                observations = session.query(Observation).filter_by(entity_id=req.entity_id).all()
+                entities = [{
+                    "id": entity.id,
+                    "type": entity.type,
+                    "value": entity.value,
+                    "source": entity.source
+                }]
             finally:
                 session.close()
         else:
-            entities = get_all_entities()
-            observations = []
+            entities = fetch_all_entities()
 
-        timestamp = "export"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         if req.format == "csv":
-            filepath = export_csv(
-                entities if req.all_entities else [],
-                filename=f"{timestamp}_entities.csv"
-            )
+            filepath = export_csv(entities, filename=f"{timestamp}_entities.csv")
         elif req.format == "json":
-            filepath = export_json(
-                entities if req.all_entities else [],
-                filename=f"{timestamp}_entities.json"
-            )
+            filepath = export_json(entities, filename=f"{timestamp}_entities.json")
         elif req.format == "kml":
-            filepath = export_kml(
-                entities if req.all_entities else [],
-                filename=f"{timestamp}_entities.kml"
-            )
+            filepath = export_kml(entities, filename=f"{timestamp}_entities.kml")
         elif req.format == "md":
-            filepath = export_markdown_report(
-                entities if req.all_entities else [],
-                filename=f"{timestamp}_report.md"
-            )
+            filepath = export_markdown_report(entities, filename=f"{timestamp}_report.md")
         elif req.format == "db":
             filepath = export_database_dump(f"xghostsignal_{timestamp}.sql")
         else:
@@ -453,8 +457,10 @@ def export_data(req: ExportRequest):
             "format": req.format,
             "filepath": filepath
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Export failed")
 
 
 @router.get("/export/{entity_id}")
@@ -515,12 +521,31 @@ class ImportRequest(BaseModel):
     parser_type: str = "opencellid"
 
 
+def _get_or_create_entity(session, entity_value, entity_type, source):
+    """Get existing entity or create new one, handling race conditions."""
+    entity = session.query(Entity).filter_by(value=entity_value).first()
+    if not entity:
+        entity = Entity(
+            type=entity_type,
+            value=entity_value,
+            normalized_value=entity_value,
+            source=source
+        )
+        session.add(entity)
+        session.flush()
+    return entity
+
+
 @router.post("/import")
 def import_data(req: ImportRequest):
     """Import data from a file using the specified parser."""
     parser_type = req.parser_type.lower()
 
-    # Determine parser
+    try:
+        safe_path = _safe_import_path(req.file_path)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
     if parser_type == "opencellid":
         from parsers.opencellid import OpenCellIDParser
         parser = OpenCellIDParser()
@@ -536,10 +561,8 @@ def import_data(req: ImportRequest):
     else:
         raise HTTPException(status_code=400, detail=f"Unknown parser type: {parser_type}")
 
-    # Parse file
-    records = parser.parse_file(req.file_path)
+    records = parser.parse_file(safe_path)
 
-    # Save to database
     session = SessionLocal()
     try:
         for r in records:
@@ -553,23 +576,12 @@ def import_data(req: ImportRequest):
                 entity_value = f"EMITTER_{r.get('protocol')}_{r.get('frequency')}"
                 entity_type = "RF_EMITTER"
 
+            entity_id = None
             if entity_value:
-                entity = session.query(Entity).filter_by(value=entity_value).first()
-                if not entity:
-                    entity = Entity(
-                        type=entity_type,
-                        value=entity_value,
-                        normalized_value=entity_value,
-                        source=r.get("source", "import")
-                    )
-                    session.add(entity)
-                    session.commit()
-                    session.refresh(entity)
-                    entity_id = entity.id
-                else:
-                    entity_id = entity.id
-            else:
-                entity_id = None
+                entity = _get_or_create_entity(
+                    session, entity_value, entity_type, r.get("source", "import")
+                )
+                entity_id = entity.id
 
             obs = Observation(
                 entity_id=entity_id,
@@ -580,8 +592,8 @@ def import_data(req: ImportRequest):
                 mnc=r.get("mnc"),
                 lac_tac=r.get("lac_tac"),
                 cell_id=r.get("cell_id"),
-                latitude=float(r["latitude"]) if r.get("latitude") else None,
-                longitude=float(r["longitude"]) if r.get("longitude") else None,
+                latitude=float(r["latitude"]) if r.get("latitude") not in (None, "") else None,
+                longitude=float(r["longitude"]) if r.get("longitude") not in (None, "") else None,
                 signal_strength=r.get("signal_strength"),
                 confidence=r.get("confidence"),
                 source=r.get("source")
@@ -590,10 +602,9 @@ def import_data(req: ImportRequest):
 
         session.commit()
 
-        # Log the import
         import_log = ImportLog(
             filename=req.file_path,
-            file_hash="calculated_hash",  # TODO: Add actual hash
+            file_hash="",
             source_type=parser_type,
             record_count=len(records)
         )
@@ -605,6 +616,9 @@ def import_data(req: ImportRequest):
             "parser": parser_type,
             "records_imported": len(records)
         }
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()
 

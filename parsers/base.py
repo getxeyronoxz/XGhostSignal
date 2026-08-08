@@ -30,7 +30,7 @@ class BaseParser(ABC):
         Creates a strictly normalized dictionary for the parser engine.
         """
         if not timestamp:
-            timestamp = datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
         if not source:
             source = self.source_type
 

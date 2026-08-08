@@ -64,7 +64,8 @@ document.addEventListener('DOMContentLoaded', () => {
             log(`Found ${stats.entities_count} entities.`);
 
             const towersRes = await fetch('/api/towers');
-            const towers = await towersRes.json();
+            const towersData = await towersRes.json();
+            const towers = towersData.data || towersData;
             map.eachLayer(layer => { if (layer instanceof L.Marker) map.removeLayer(layer) });
             towers.forEach(t => {
                 if (t.lat && t.lon) {

@@ -1,12 +1,26 @@
 import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, func
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, event
 from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy.sql import text
 
 from core.config import DB_PATH
 
 Base = declarative_base()
-engine = create_engine(DB_PATH, echo=False)
+engine = create_engine(
+    DB_PATH,
+    echo=False,
+    connect_args={"timeout": 30},
+    pool_pre_ping=True
+)
+
+
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, _connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

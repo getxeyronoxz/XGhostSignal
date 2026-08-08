@@ -17,11 +17,10 @@ class PluginRegistry:
         if not os.path.exists(plugin_dir):
             return
 
-        # Auto-detect package path if not provided
+            # Auto-detect package path if not provided
         if package is None:
-            # Get the parent directory name as package root
             base_dir = os.path.basename(plugin_dir.rstrip(os.sep))
-            package = f"xghostsignal.plugins.{base_dir}"
+            package = f"plugins.{base_dir}"
 
         for filename in os.listdir(plugin_dir):
             if filename.endswith(".py") and not filename.startswith("__"):

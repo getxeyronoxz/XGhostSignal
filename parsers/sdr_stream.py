@@ -111,13 +111,12 @@ class SDRStreamParser(BaseParser):
 
         return dbm
 
-    def parse_file(self, file_path: str):
-        """Parse file method - overridden for streaming context.
+    def parse_file(self, file_path: str) -> List[Dict[str, Any]]:
+        """Parse file is not supported for live streaming.
 
-        Raises:
-            NotImplementedError: Use start_stream() for live capture
+        Use start_stream() for live RTL-SDR capture instead.
         """
-        raise NotImplementedError("Use start_stream() for live RTL-SDR capture.")
+        return []
 
     def _process_samples(self, samples: bytes, freq_offset: float = 0):
         """Process raw IQ samples and create observation records.
@@ -147,19 +146,14 @@ class SDRStreamParser(BaseParser):
         # Detect signal burst (threshold: -50 dBm)
         BURST_THRESHOLD = -50.0
         if power_dbm > BURST_THRESHOLD:
-            # Calculate frequency from offset
             actual_freq = self.center_freq + freq_offset
 
-            # Create observation record
             record = self.create_unified_record(
                 source="rtl-sdr-live",
                 protocol="RF_BURST",
                 frequency=str(actual_freq),
                 signal_strength=f"{power_dbm:.2f}",
-                confidence="high",
-                # Simulate coordinates near user's location for demo
-                latitude=20.0,  # Default to India center
-                longitude=78.0
+                confidence="high"
             )
 
             # Save to database
@@ -184,8 +178,6 @@ class SDRStreamParser(BaseParser):
                     observation_type="RF_BURST",
                     protocol="RF_BURST",
                     frequency=str(actual_freq),
-                    latitude=20.0,
-                    longitude=78.0,
                     signal_strength=f"{power_dbm:.2f}",
                     confidence="high",
                     source="rtl-sdr-live"

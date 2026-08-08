@@ -6,22 +6,17 @@ typer>=0.9.0
 rich>=13.0.0
 
 # Web Server
-fastapi>=0.100.0
+fastapi>=0.115.0
 uvicorn>=0.23.0
 
 # Database
 sqlalchemy>=2.0.0
 
-# Data Processing
-pandas>=2.0.0
-geopandas>=0.14.0
-shapely>=2.0.0
+# Graph Analysis
 networkx>=3.0.0
 
 # Networking
-requests>=2.31.0
-httpx>=0.24.0
-pyyaml>=6.0.0
+httpx>=0.27.0
 
 # Phone Number Parsing
 phonenumbers>=8.13.0
@@ -32,8 +27,5 @@ pyrtlsdr>=0.3.0
 # Network Packet Parsing
 scapy>=2.5.0
 
-# Local LLM Integration
-ollama>=0.1.0
-
-# Optional: Breach Database
-# lmdb>=0.98  # For high-performance breach lookup
+# Dev Dependencies (install with: pip install -e ".[dev]")
+# pytest>=8.0

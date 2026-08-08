@@ -9,10 +9,8 @@ from core.config import ALLOWED_COUNTRY_CODES
 from services.reports import generate_dossier
 from services.llm import summarize_dossier_with_llm
 from services.export import (
-    get_all_entities, get_all_observations,
     export_csv, export_json, export_kml, export_markdown_report, export_database_dump
 )
-from core.database import Observation
 
 app = typer.Typer(help="XGhostSignal - Local-first OSINT and Cellular Intelligence Workbench")
 console = Console()
@@ -137,7 +135,6 @@ def ingest(file_path: str, parser_type: str = typer.Option("opencellid", help="T
         session = SessionLocal()
         try:
             for r in records:
-                # 1. Determine Identity
                 entity_value = None
                 entity_type = "UNKNOWN"
 
@@ -151,7 +148,6 @@ def ingest(file_path: str, parser_type: str = typer.Option("opencellid", help="T
                     entity_value = f"EMITTER_{r.get('protocol')}_{r.get('frequency')}"
                     entity_type = "RF_EMITTER"
 
-                # 2. Upsert Entity
                 entity_id = None
                 if entity_value:
                     entity = session.query(Entity).filter_by(value=entity_value).first()
@@ -163,12 +159,9 @@ def ingest(file_path: str, parser_type: str = typer.Option("opencellid", help="T
                             source=r.get("source", "parser")
                         )
                         session.add(entity)
-                        session.commit()
-                        session.refresh(entity)
+                        session.flush()
                     entity_id = entity.id
 
-                # 3. Create Observation linked to Entity
-                from core.database import Observation
                 obs = Observation(
                     entity_id=entity_id,
                     observation_type=r.get("protocol", "RF"),
@@ -178,8 +171,8 @@ def ingest(file_path: str, parser_type: str = typer.Option("opencellid", help="T
                     mnc=r.get("mnc"),
                     lac_tac=r.get("lac_tac"),
                     cell_id=r.get("cell_id"),
-                    latitude=float(r["latitude"]) if r.get("latitude") else None,
-                    longitude=float(r["longitude"]) if r.get("longitude") else None,
+                    latitude=float(r["latitude"]) if r.get("latitude") is not None else None,
+                    longitude=float(r["longitude"]) if r.get("longitude") is not None else None,
                     signal_strength=r.get("signal_strength"),
                     confidence=r.get("confidence"),
                     source=r.get("source")
@@ -187,6 +180,9 @@ def ingest(file_path: str, parser_type: str = typer.Option("opencellid", help="T
                 session.add(obs)
             session.commit()
             console.print(f"[green][+] Saved {len(records)} observations and linked entities to Evidence Vault.[/green]")
+        except Exception:
+            session.rollback()
+            raise
         finally:
             session.close()
 
@@ -214,80 +210,71 @@ def stream(hardware: str = typer.Option("rtl-sdr", help="Hardware to stream: rtl
 
 @app.command()
 def export(identifier: str, format: str = typer.Option("csv", help="Export format: csv, json, kml, md, db")):
-    """Export intelligence data to various formats.
-
-    Args:
-        identifier: Entity identifier to export
-        format: Output format (csv, json, kml, md for markdown, db for database dump)
-    """
-    from core.database import SessionLocal, Entity
+    """Export intelligence data to various formats."""
     session = SessionLocal()
     try:
-        entity = session.query(Entity).filter(
-            (Entity.value == identifier) | (Entity.id == int(identifier)) if identifier.isdigit() else (Entity.value == identifier)
-        ).first()
+        if identifier.isdigit():
+            entity = session.query(Entity).filter(
+                (Entity.value == identifier) | (Entity.id == int(identifier))
+            ).first()
+        else:
+            entity = session.query(Entity).filter_by(value=identifier).first()
 
         if not entity:
             console.print(f"[red]Error: Entity '{identifier}' not found in Evidence Vault.[/red]")
             raise typer.Exit(1)
 
-        # Get all observations for this entity
-        observations = session.query(Observation).filter_by(entity_id=entity.id).all()
-        entities = [entity] + [Observation(
-            id=o.id, type="OBSERVATION",
-            value=f"{o.observation_type}:{o.cell_id}",
-            normalized_value=str(o.timestamp),
-            source=o.source
-        ) for o in observations]
-
-        timestamp = session.query(Observation).filter_by(entity_id=entity.id).first()
-        if timestamp:
-            timestamp = str(timestamp.timestamp)
-        else:
-            timestamp = "unknown"
-
     finally:
         session.close()
 
-    # Export based on format
+    entity_data = [{
+        "id": entity.id,
+        "type": entity.type,
+        "value": entity.value,
+        "source": entity.source
+    }]
+
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_value = entity.value.replace('+', '').replace(' ', '_')
+
     if format == "csv":
-        filepath = export_csv([{
-            "id": entity.id,
-            "type": entity.type,
-            "value": entity.value,
-            "source": entity.source
-        }], filename=f"entity_{entity.value.replace('+', '')}_{timestamp[:10]}.csv")
+        filepath = export_csv(entity_data, filename=f"entity_{safe_value}_{timestamp}.csv")
         console.print(f"[green][+] Exported CSV to: {filepath}[/green]")
     elif format == "json":
-        filepath = export_json([{
-            "id": entity.id,
-            "type": entity.type,
-            "value": entity.value,
-            "source": entity.source
-        }], filename=f"entity_{entity.value.replace('+', '')}_{timestamp[:10]}.json")
+        filepath = export_json(entity_data, filename=f"entity_{safe_value}_{timestamp}.json")
         console.print(f"[green][+] Exported JSON to: {filepath}[/green]")
     elif format == "kml":
-        filepath = export_kml([{
-            "id": entity.id,
-            "type": entity.type,
-            "value": entity.value,
-            "source": entity.source
-        }], filename=f"entity_{entity.value.replace('+', '')}_{timestamp[:10]}.kml")
+        filepath = export_kml(entity_data, filename=f"entity_{safe_value}_{timestamp}.kml")
         console.print(f"[green][+] Exported KML to: {filepath}[/green]")
     elif format == "md":
-        filepath = export_markdown_report([{
-            "id": entity.id,
-            "type": entity.type,
-            "value": entity.value,
-            "source": entity.source
-        }], filename=f"entity_{entity.value.replace('+', '')}_{timestamp[:10]}.md")
+        filepath = export_markdown_report(entity_data, filename=f"entity_{safe_value}_{timestamp}.md")
         console.print(f"[green][+] Exported Markdown to: {filepath}[/green]")
     elif format == "db":
-        filepath = export_database_dump(f"xghostsignal_export_{timestamp[:10]}.sql")
+        filepath = export_database_dump(f"xghostsignal_export_{timestamp}.sql")
         console.print(f"[green][+] Database dump saved to: {filepath}[/green]")
     else:
         console.print(f"[red]Unknown format: {format}. Use: csv, json, kml, md, db[/red]")
         raise typer.Exit(1)
+
+
+@app.command()
+def serve(host: str = typer.Option("127.0.0.1", help="Bind host"), port: int = typer.Option(8080, help="Bind port")):
+    """Start the web server and serve the tactical UI."""
+    import uvicorn
+    from fastapi import FastAPI
+    from fastapi.staticfiles import StaticFiles
+    from api.routes import router
+
+    server_app = FastAPI(title="XGhostSignal UI Backend")
+    server_app.include_router(router, prefix="/api")
+
+    import os
+    os.makedirs("static", exist_ok=True)
+    server_app.mount("/", StaticFiles(directory="static", html=True), name="static")
+
+    console.print(f"[*] Starting XGhostSignal local enclave on http://{host}:{port}")
+    uvicorn.run(server_app, host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":

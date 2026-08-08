@@ -10,34 +10,41 @@ Provides export functionality for intelligence data in various formats:
 import csv
 import json
 import os
+import re
 import sqlite3
+import contextlib
 from datetime import datetime
-from typing import List, Dict, Any, Optional
-from io import StringIO
+from pathlib import Path
+from typing import List, Dict, Any
+from xml.sax.saxutils import escape as xml_escape
 
-from core.database import SessionLocal, Entity, Observation, Tower, Link
+from core.database import SessionLocal, Entity, Observation
+
+
+def _safe_filename(filename: str) -> str:
+    """Sanitize filename to prevent path traversal."""
+    safe = Path(filename).name
+    safe = re.sub(r'[^A-Za-z0-9_.-]', '_', safe)
+    if not safe:
+        safe = "export"
+    return safe
+
+
+def _exports_dir() -> Path:
+    p = Path("exports")
+    p.mkdir(exist_ok=True)
+    return p
 
 
 def export_csv(entities: List[Dict[str, Any]], filename: str = None) -> str:
-    """Export entities to CSV format.
-
-    Args:
-        entities: List of entity dictionaries to export
-        filename: Output filename (optional)
-
-    Returns:
-        Path to exported file
-    """
+    """Export entities to CSV format."""
     if not entities:
         return ""
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    safe_filename = filename or f"export_{timestamp}.csv"
-    filepath = os.path.join("exports", safe_filename)
+    safe_filename = _safe_filename(filename or f"export_{timestamp}.csv")
+    filepath = _exports_dir() / safe_filename
 
-    os.makedirs("exports", exist_ok=True)
-
-    # Get all keys from entities for CSV headers
     all_keys = set()
     for entity in entities:
         all_keys.update(entity.keys())
@@ -47,54 +54,33 @@ def export_csv(entities: List[Dict[str, Any]], filename: str = None) -> str:
         writer.writeheader()
         writer.writerows(entities)
 
-    return filepath
+    return str(filepath)
 
 
 def export_json(entities: List[Dict[str, Any]], filename: str = None) -> str:
-    """Export entities to JSON format.
-
-    Args:
-        entities: List of entity dictionaries to export
-        filename: Output filename (optional)
-
-    Returns:
-        Path to exported file
-    """
+    """Export entities to JSON format."""
     if not entities:
         return ""
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    safe_filename = filename or f"export_{timestamp}.json"
-    filepath = os.path.join("exports", safe_filename)
-
-    os.makedirs("exports", exist_ok=True)
+    safe_filename = _safe_filename(filename or f"export_{timestamp}.json")
+    filepath = _exports_dir() / safe_filename
 
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(entities, f, indent=2, default=str)
 
-    return filepath
+    return str(filepath)
 
 
 def export_kml(entities: List[Dict[str, Any]], filename: str = None) -> str:
-    """Export entities to KML format for Google Earth.
-
-    Args:
-        entities: List of entity dictionaries (should have lat/lon)
-        filename: Output filename (optional)
-
-    Returns:
-        Path to exported file
-    """
+    """Export entities to KML format for Google Earth."""
     if not entities:
         return ""
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    safe_filename = filename or f"export_{timestamp}.kml"
-    filepath = os.path.join("exports", safe_filename)
+    safe_filename = _safe_filename(filename or f"export_{timestamp}.kml")
+    filepath = _exports_dir() / safe_filename
 
-    os.makedirs("exports", exist_ok=True)
-
-    # Build KML document
     kml_header = '''<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
@@ -112,9 +98,8 @@ def export_kml(entities: List[Dict[str, Any]], filename: str = None) -> str:
         lon = entity.get('longitude') or entity.get('lon')
 
         if lat is not None and lon is not None:
-            name = entity.get('value') or entity.get('id', 'Unknown')
-            entity_type = entity.get('type', 'Unknown')
-            desc = entity.get('description', entity.get('source', ''))
+            name = xml_escape(str(entity.get('value') or entity.get('id', 'Unknown')))
+            desc = xml_escape(str(entity.get('description', entity.get('source', ''))))
 
             placemark = f'''    <Placemark>
       <name>{name}</name>
@@ -131,31 +116,21 @@ def export_kml(entities: List[Dict[str, Any]], filename: str = None) -> str:
         f.write('\n'.join(placemarks))
         f.write(kml_footer)
 
-    return filepath
+    return str(filepath)
 
 
 def export_markdown_report(entities: List[Dict[str, Any]], filename: str = None) -> str:
-    """Export entities to Markdown report format.
-
-    Args:
-        entities: List of entity dictionaries to export
-        filename: Output filename (optional)
-
-    Returns:
-        Path to exported file
-    """
+    """Export entities to Markdown report format."""
     if not entities:
         return ""
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    safe_filename = filename or f"report_{timestamp}.md"
-    filepath = os.path.join("exports", safe_filename)
-
-    os.makedirs("exports", exist_ok=True)
+    safe_filename = _safe_filename(filename or f"report_{timestamp}.md")
+    filepath = _exports_dir() / safe_filename
 
     lines = [
         "# XGhostSignal Intelligence Report",
-        f"**Generated:** {datetime.now().isoformat()}Z",
+        f"**Generated:** {datetime.now().isoformat()}",
         "",
         "## Summary",
         f"**Total Entities:** {len(entities)}",
@@ -176,69 +151,28 @@ def export_markdown_report(entities: List[Dict[str, Any]], filename: str = None)
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines))
 
-    return filepath
+    return str(filepath)
 
 
 def export_database_dump(output_path: str = None) -> str:
-    """Export the entire XGhostSignal database to a dump file.
-
-    Args:
-        output_path: Output path for SQL dump (optional)
-
-    Returns:
-        Path to exported file
-    """
+    """Export the entire XGhostSignal database to a dump file."""
     from core.config import DB_PATH
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    safe_filename = output_path or f"xghostsignal_dump_{timestamp}.sql"
-    filepath = os.path.join("exports", safe_filename)
+    safe_filename = _safe_filename(output_path or f"xghostsignal_dump_{timestamp}.sql")
+    filepath = _exports_dir() / safe_filename
 
-    os.makedirs("exports", exist_ok=True)
-
-    # Connect to the SQLite database
     db_path = DB_PATH.replace("sqlite:///", "")
-    conn = sqlite3.connect(db_path)
-    conn.text_factory = str
 
-    with open(filepath, 'w', encoding='utf-8') as f:
-        # Write header
-        f.write("-- XGhostSignal Database Dump\n")
-        f.write(f"-- Generated: {datetime.now().isoformat()}Z\n")
-        f.write("-- https://github.com/xeyronox/xghostsignal\n\n")
+    with contextlib.closing(sqlite3.connect(db_path)) as conn:
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write("-- XGhostSignal Database Dump\n")
+            f.write(f"-- Generated: {datetime.now().isoformat()}\n")
+            f.write("-- https://github.com/xeyronox/xghostsignal\n\n")
+            for line in conn.iterdump():
+                f.write(f"{line};\n")
 
-        # Dump schema
-        cursor = conn.cursor()
-        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table';")
-        for row in cursor.fetchall():
-            f.write(f"{row[0]};\n\n")
-
-        # Dump data from each table
-        tables = ['entities', 'observations', 'towers', 'links', 'imports']
-        for table in tables:
-            f.write(f"-- Data from {table}\n")
-            cursor.execute(f"SELECT * FROM {table};")
-            rows = cursor.fetchall()
-            if rows:
-                # Get column names
-                column_names = [description[0] for description in cursor.description]
-                for row in rows:
-                    values = []
-                    for val in row:
-                        if val is None:
-                            values.append("NULL")
-                        elif isinstance(val, str):
-                            # Escape single quotes
-                            val = val.replace("'", "''")
-                            values.append(f"'{val}'")
-                        else:
-                            values.append(str(val))
-                    f.write(f"INSERT INTO {table} ({', '.join(column_names)}) VALUES ({', '.join(values)});\n")
-            f.write("\n")
-
-        conn.close()
-
-    return filepath
+    return str(filepath)
 
 
 def get_all_entities() -> List[Dict[str, Any]]:

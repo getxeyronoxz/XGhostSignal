@@ -1,353 +1,279 @@
 # XGhostSignal
 
-> **Local-First OSINT and Cellular Intelligence Workbench**  
-> *A secure enclave for defensive research, telecom study, and geospatial correlation.*
+> **Local-First OSINT & Cellular Intelligence Workbench**
+>
+> Cell tower mapping · Phone enrichment · RF signal detection · Entity correlation
 
-## Overview
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/getxeyronoxz/XGhostSignal/releases/tag/v0.2.0)
+[![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
 
-**XGhostSignal** is a robust, production-grade intelligence tool built for mapping cell towers, enriching phone number metadata, and correlating identifiers across datasets. It features a tactical dual-interface: a high-speed CLI (`xgs`) for power users and a fully-featured, dark-mode web GUI for detailed visualization.
+**XGhostSignal** is a local-first intelligence tool for mapping cell towers, enriching phone number metadata, correlating identifiers across datasets, and analyzing RF signals. It features a CLI (`xgs`) for power users and a web GUI for visualization.
 
-### 🌍 Target Scope Constraint
-To ensure high fidelity, accuracy, and compliance, the core logic (phone parsing, MCC/MNC tower filtering, and geospatial boundaries) is strictly scoped to **five specific target nations**:
-*   🇮🇳 **India**
-*   🇵🇰 **Pakistan**
-*   🇨🇳 **China**
-*   🇺🇸 **USA**
-*   🇷🇺 **Russia**
+**Your data never leaves your machine.** No telemetry, no cloud, no external APIs.
 
-*Queries outside of these regions will be automatically rejected by the engine.*
+---
+
+## Features
+
+- **Phone Intelligence** — E.164 normalization, carrier/location lookup, validity checks (scoped to IN, PK, CN, US, RU)
+- **Cell Tower Mapping** — Import and visualize tower data from OpenCelliD, CellMapper, and RTL-Power
+- **RF Signal Detection** — Live RTL-SDR streaming with signal burst detection
+- **ADS-B Aviation Tracking** — Real-time aircraft position data from dump1090
+- **Entity Correlation** — Automatic co-location analysis and graph-based relationship mapping
+- **Breach Checking** — Local LMDB/SQLite-based phone number leak database
+- **LLM Summarization** — Tactical AI summaries via local Ollama (llama3:8b)
+- **Multiple Export Formats** — CSV, JSON, KML (Google Earth), Markdown, SQLite dump
+- **Plugin System** — Extend with custom plugins in `plugins/custom/`
+- **REST API** — Full FastAPI backend with Swagger/ReDoc documentation
+- **Web Dashboard** — Leaflet maps + Cytoscape graph visualization, zero build step
+
+---
+
+## Quick Start
+
+```bash
+# Clone
+git clone https://github.com/getxeyronoxz/XGhostSignal.git
+cd XGhostSignal
+
+# Setup
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+# source .venv/bin/activate  # Linux/Mac
+
+# Install
+pip install -r requirements.txt
+pip install -e .
+
+# Initialize database
+xgs init
+
+# Search a phone number
+xgs search "+919876543210"
+
+# Generate report
+xgs report "+919876543210"
+
+# Start web UI
+xgs serve
+# Open http://localhost:8080
+```
 
 ---
 
 ## Installation
 
-XGhostSignal is built as a modular Python package.
+### Requirements
+- Python 3.9+
+- pip or uv package manager
 
+### From Source
 ```bash
-# Clone the repository
-git clone https://github.com/xeyronox/XGhostSignal.git
+git clone https://github.com/getxeyronoxz/XGhostSignal.git
 cd XGhostSignal
-
-# Create virtual environment (recommended)
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# Install dependencies
+source .venv/bin/activate  # Linux/Mac
+# .venv\Scripts\activate  # Windows
 pip install -r requirements.txt
-
-# Or install as a package
-pip install -e .
+pip install -e .  # Installs `xgs` command globally
 ```
 
-Once installed, the `xgs` command becomes globally available on your terminal.
+### Development Install
+```bash
+pip install -e ".[dev]"  # Includes pytest and testing tools
+```
 
 ---
 
-## Usage Guide
+## Usage
 
-### 1. Initializing the Database
+### CLI Commands
 
-Before running any intelligence queries, you must initialize the local SQLite secure enclave:
+| Command | Description | Example |
+|---------|-------------|---------|
+| `xgs init` | Initialize SQLite database | `xgs init` |
+| `xgs search <number>` | Search and enrich a phone number | `xgs search "+919876543210"` |
+| `xgs report <number>` | Generate Markdown dossier | `xgs report "+919876543210"` |
+| `xgs summarize <number>` | Generate dossier + LLM summary | `xgs summarize "+919876543210"` |
+|`xgs ingest <file> --parser-type <type>` | Ingest RF/telecom data | `xgs ingest data.csv --parser-type opencellid` |
+| `xgs stream <hardware>` | Live hardware capture | `xgs stream rtl-sdr` |
+| `xgs export <id> --format <fmt>` | Export data | `xgs export "+919876543210" --format kml` |
+| `xgs serve` | Start web UI server | `xgs serve` |
 
-```bash
-xgs init
-# Or
-python -m cli_app.main init
-```
+### Supported Parsers
+- `opencellid` — OpenCelliD CSV exports
+- `cellmapper` — CellMapper CSV exports
+- `rtl_power` — RTL-Power spectrum scans
+- `pcap` — PCAP/PCAPNG packet captures (requires scapy)
+- `sdr_stream` — Live RTL-SDR streaming
+- `adsb` — ADS-B aviation data (requires dump1090)
 
-### 2. Tactical CLI Commands
+### Web Interface
 
-The CLI is designed for rapid batch analysis and data ingestion.
-
-**Search an Identifier (Phone Number):**
-```bash
-xgs search "+919876543210"
-```
-*Provides E.164 normalization, country code, carrier context, and validity checks.*
-
-**Generate Intelligence Report:**
-```bash
-xgs report "+919876543210"
-```
-*Creates a comprehensive Markdown dossier in `reports/` directory.*
-
-**Summarize with Local LLM:**
-```bash
-xgs summarize "+919876543210"
-```
-*Requires Ollama running locally with `llama3:8b` model.*
-
-**Ingest Signal Intelligence Logs:**
-```bash
-xgs ingest path/to/data.csv --parser-type opencellid
-xgs ingest path/to/power.csv --parser-type rtl_power
-xgs ingest path/to/capture.pcap --parser-type pcap
-```
-*The Unified Parser Engine routes RF captures, SDR logs, and CSVs into a strict normalized JSON schema before hitting the Evidence Vault.*
-
-**Live Hardware Streaming:**
-```bash
-xgs stream rtl-sdr
-xgs stream adsb
-```
-*Capture real-time RTL-SDR signals or ADS-B aircraft data.*
-
-**Export Data:**
-```bash
-xgs export "+919876543210" --format csv
-xgs export "+919876543210" --format json
-xgs export "+919876543210" --format kml
-xgs export "+919876543210" --format md
-xgs export "+919876543210" --format db
-```
-
-### 3. The Evidence Vault & Local AI
-
-Generate a comprehensive Markdown dossier for an entity:
-```bash
-xgs report "+919876543210"
-```
-*Outputs a timestamped file into the `reports/` directory.*
-
-To automatically summarize this dossier using a Local LLM (requires Ollama running `llama3:8b` locally):
-```bash
-xgs summarize "+919876543210"
-```
-*Your data never leaves the machine.*
-
-### 4. Launching the Tactical UI
-
-To visualize your intelligence, you must run the API server which serves the vanilla frontend dynamically.
-
-**Start the API Enclave (Port 8080)**
+Start the server:
 ```bash
 xgs serve
-# Or
-python -m cli_app.main -g
 ```
 
-Navigate to `http://localhost:8080` to view the live dashboard. The UI features a custom dark CartoDB Leaflet integration for tracking coordinates and a Cytoscape Graph engine for network correlations, served purely through high-speed vanilla JavaScript and HTML.
+Navigate to `http://localhost:8080` for:
+- **Interactive Map** — Leaflet-based tower visualization
+- **Correlation Graph** — Cytoscape.js entity relationship graph
+- **Console** — Real-time operation logging
 
----
+### API Documentation
 
-## Advanced Plugins
-
-Create custom plugins in `plugins/custom/`:
-
-```python
-# plugins/custom/my_plugin.py
-PLUGIN_NAME = "my_plugin"
-VERSION = "1.0.0"
-
-def run(arg1: str, arg2: int = 10) -> dict:
-    """Plugin entry point."""
-    return {"status": "success", "result": f"Processed {arg1} {arg2} times"}
-```
-
----
-
-## Architecture
-
-XGhostSignal strictly adheres to local-first principles.
-
-### Backend Stack
-- **Python 3.9+**
-- **Typer** - CLI framework
-- **FastAPI** - Web API server
-- **SQLAlchemy** - Database ORM (SQLite)
-- **Geopandas & Shapely** - Geospatial analysis
-- **NetworkX** - Graph correlation
-
-### Frontend Stack
-- **Vanilla HTML/CSS/JavaScript** - No build tools
-- **Leaflet 1.9** - Interactive maps
-- **Cytoscape.js 3.28** - Graph visualization
-
-### Data Flow
-```
-Raw Data (CSV, PCAP, SDR) → Parsers → Normalized Schema → SQLite Evidence Vault
-                                                              ↓
-                                                        Graph Analysis
-                                                              ↓
-                                                         Export Formats
-```
-
----
-
-## API Documentation
-
-Once the server is running, visit:
+Once running:
 - **Swagger UI**: `http://localhost:8080/docs`
 - **ReDoc**: `http://localhost:8080/redoc`
-
-### Endpoints Summary
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/stats` | Overall statistics |
-| GET | `/api/stats/detailed` | Detailed breakdown |
-| GET | `/api/entities` | List all entities |
-| GET | `/api/towers` | Cell tower data |
-| GET | `/api/towers/bbox` | Towers in bounding box |
-| GET | `/api/graph` | Entity correlation graph |
-| POST | `/api/search` | Search phone number |
-| POST | `/api/export` | Export data |
-| GET | `/api/health` | Health check |
 
 ---
 
 ## Configuration
 
-### Country/Region Filtering
-
-Edit `core/config.py` to modify allowed regions:
-
+### Country Scope
+Edit `core/config.py` to modify allowed regions (default: IN, PK, CN, US, RU):
 ```python
-# Mobile Country Codes (MCC)
-ALLOWED_MCCS = [404, 405, 410, 460, 310, 311, 312, 313, 314, 315, 316, 250]
-
-# ISO-3166-1 alpha-2 country codes
 ALLOWED_COUNTRY_CODES = ["IN", "PK", "CN", "US", "RU"]
+ALLOWED_MCCS = [404, 405, 410, 460, 310, 311, 312, 313, 314, 315, 316, 250]
 ```
 
-### Database Settings
-
-Default: SQLite at `xghostsignal.db`
-
-```python
-DB_PATH = "sqlite:///xghostsignal.db"
-```
+### Database
+Default: SQLite at `xghostsignal.db` (WAL mode, 30s timeout)
 
 ### LLM Settings
-
-Default: Ollama at `http://localhost:11434`
-
-```python
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "llama3:8b"
-```
+Ollama at `http://localhost:11434`, model `llama3:8b` (required only for `xgs summarize`)
 
 ---
 
-## Hardware Support
+## Architecture
 
-### RTL-SDR Setup
-
-1. **Install PyRtlSdr:**
-   ```bash
-   pip install pyrtlsdr
-   ```
-
-2. **Windows Driver Setup:**
-   - Download [Zadig](https://zadig.akeo.ie)
-   - Select RTL2832U device
-   - Install LibUSB Win32 driver
-
-3. **Linux Udev Rules:**
-   ```bash
-   sudo cp docs/rtl-sdr.rules /etc/udev/rules.d/
-   sudo udevadm control --reload-rules
-   ```
-
-### ADS-B Setup
-
-1. **Install dump1090:**
-   ```bash
-   # Windows
-   # Download from https://github.com/antirez/dump1090
-   
-   # Linux
-   sudo apt-get install dump1090-mutability
-   ```
-
-2. **Start dump1090:**
-   ```bash
-   dump1090 --net --net-sbs-port 30003
-   ```
-
----
-
-## Security
-
-### Local-First Architecture
-- All data stays on your machine
-- No external API calls (except optional Ollama)
-- No telemetry or tracking
-- No cloud synchronization
-
-### Privacy Features
-- Phone numbers are hashed for leak checking
-- No data leaves your system
-- Local-only graph analysis
-- Optional breach database (SQLite-based)
-
----
-
-## Troubleshooting
-
-### RTL-SDR Not Working
-```bash
-# Check device detection
-python -c "from rtlsdr import RtlSdr; sdr = RtlSdr()"
+```
+core/          Config (country scope, DB path) + SQLAlchemy models
+cli_app/       Typer CLI (init, search, report, summarize, ingest, stream, export, serve)
+api/           FastAPI REST endpoints (/api/*)
+services/      Export, Reports, LLM, Graph analysis
+parsers/       Unified Parser Engine (BaseParser ABC + specific parsers)
+plugins/       Dynamic plugin loader + default plugins
+static/        Vanilla HTML/CSS/JS frontend (no build step)
 ```
 
-### Web UI Not Starting
-```bash
-# Check port availability
-# Windows: netstat -ano | findstr :8080
-# Linux/Mac: lsof -i :8080
+### Data Flow
+```
+Raw Data (CSV, PCAP, SDR) → Parsers → Unified Schema → SQLite
+                                                         ↓
+                                                   Graph Analysis
+                                                         ↓
+                                              Export (CSV/JSON/KML/MD/SQL)
 ```
 
-### Missing Dependencies
-```bash
-pip install -r requirements.txt
-```
+### Technology Stack
+- **Python 3.9+**, **Typer** (CLI), **FastAPI** (API), **SQLAlchemy** (ORM)
+- **SQLite** with WAL mode for concurrent access
+- **NetworkX** for graph correlation
+- **Phonenumbers** for phone parsing
+- **Scapy** for PCAP parsing, **PyRtlSdr** for RTL-SDR
+- **Leaflet** + **Cytoscape.js** for web visualization
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-### Development Setup
-
+### Quick Development Setup
 ```bash
-git clone https://github.com/xeyronox/XGhostSignal.git
+git clone https://github.com/getxeyronoxz/XGhostSignal.git
 cd XGhostSignal
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-pip install -e .
-
-# Run tests
+pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-### Adding New Features
+### How to Contribute
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Make your changes
+4. Run tests: `pytest tests/ -v`
+5. Commit: `git commit -m "Add your feature"`
+6. Push: `git push origin feature/your-feature`
+7. Open a Pull Request
 
-1. Create a new branch: `git checkout -b feature/your-feature`
-2. Make your changes
-3. Run tests: `pytest tests/ -v`
-4. Commit: `git commit -m "Add your feature"`
-5. Push: `git push origin feature/your-feature`
-6. Open a Pull Request
+### Adding a Parser
+```python
+# parsers/custom_parser.py
+from parsers.base import BaseParser
+
+class CustomParser(BaseParser):
+    def parse_file(self, file_path: str):
+        # Your parsing logic
+        return records
+```
+
+### Adding a Plugin
+```python
+# plugins/custom/my_plugin.py
+PLUGIN_NAME = "my_plugin"
+
+def run(arg1: str) -> dict:
+    return {"status": "success", "result": arg1}
+```
+
+---
+
+## Project Structure
+
+```
+XGhostSignal/
+├── core/               # Configuration and database models
+├── cli_app/            # Typer CLI application
+├── api/                # FastAPI REST routes
+├── services/           # Business logic (export, reports, LLM, graph)
+├── parsers/            # Unified parser engine
+├── plugins/            # Plugin system + default plugins
+├── static/             # Web frontend (HTML/CSS/JS)
+├── tests/              # Test suite
+├── docs/               # Documentation
+├── main.py             # Web server entry point
+├── __main__.py         # Module entry point
+├── pyproject.toml      # Package configuration
+├── requirements.txt    # Dependencies
+├── CHANGELOG.md        # Version history
+├── CONTRIBUTING.md     # Contribution guidelines
+├── LICENSE             # MIT License
+└── AGENTS.md           # AI assistant guidance
+```
+
+---
+
+## Security
+
+- **Local-first** — All data stays on your machine
+- **No telemetry** — No tracking, no external calls (except optional Ollama)
+- **Path traversal protection** — Import/export paths sanitized
+- **XML escaping** — KML export prevents injection
+- **SQLite WAL mode** — Concurrent access without corruption
 
 ---
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
 ## Acknowledgments
 
-- OpenCelliD for tower database
-- Dump1090 for ADS-B decoding
-- PyRtlSdr for RTL-SDR support
-- Scapy for packet parsing
+- [OpenCelliD](https://opencellid.org) — Cell tower database
+- [dump1090](https://github.com/antirez/dump1090) — ADS-B decoding
+- [PyRtlSdr](https://github.com-roger-/pyrtlsdr) — RTL-SDR support
+- [Scapy](https://scapy.net) — Packet parsing
+- [Ollama](https://ollama.ai) — Local LLM inference
 
 ---
 
 ## Disclaimer
 
-This tool is for educational and authorized security testing purposes only. Ensure you have proper authorization before conducting any testing. The authors are not responsible for misuse of this tool.
+This tool is for **educational and authorized security testing purposes only**. Ensure you have proper authorization before conducting any testing. The authors are not responsible for misuse of this tool.

@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+- Added path traversal protection on `POST /api/import` (files restricted to `data/` root)
+- Added filename sanitization for exports and reports
+- Fixed KML/XML injection via proper entity escaping in export module
+- Bumped `fastapi` to `>=0.115` (fixes CVE-2024-47874 in Starlette)
+
+### Added
+- `AGENTS.md` — AI assistant guidance for future development sessions
+- `CONTRIBUTING.md` — contribution guidelines for forkers and contributors
+- `xgs serve` command — start web UI server (previously documented but non-functional)
+- SQLite WAL mode with 30s timeout for concurrent writer support
+- Foreign keys pragma enabled on database connections
+- `pytest` added to `[project.optional-dependencies].dev`
+- GitHub topics/tags for discoverability
+
+### Fixed
+- **B1**: Fixed `POST /api/export` crash from `get_all_entities` name shadowing
+- **B3**: Fixed plugin registry import path (`xghostsignal.plugins` → `plugins`)
+- **B4**: Removed broken `GSMPacket` import from PCAP parser
+- **B5**: Removed fabricated evidence from PCAP parser (no more fake geolocation)
+- **B6**: Removed broken `Observation` construction crashing `xgs export`
+- **B9**: Fixed naive/aware datetime mismatch in stats endpoint
+- **B13**: Fixed dashboard towers rendering (API response shape mismatch)
+- **PR1**: Fixed `SDRStreamParser.parse_file()` to return `[]` instead of raising `NotImplementedError`
+- **PR3**: Fixed `latitude=0`/`longitude=0` being dropped (truthiness → `is not None`)
+- **DB3**: Fixed entity race condition with `flush()` + single commit pattern
+- **DB4**: Removed per-row `commit()` on import — now single outer commit
+- **DB5**: Added SQLite timeout and WAL mode for concurrent access
+- **P1-P3**: Replaced deprecated `datetime.utcnow()` with timezone-aware `datetime.now(timezone.utc)`
+- **C1**: Synced version to `0.2.0` across `__init__.py`, `pyproject.toml`, and `CHANGELOG.md`
+- **C2**: Added working `xgs serve` command (was documented but missing)
+
+### Changed
+- Updated `README.md` — comprehensive rewrite for contributors and forkers
+- Updated `pyproject.toml` — removed unused deps, added dev dependencies
+- Updated `requirements.txt` — removed unused dependencies
+- Updated GitHub repo description and topics
+
+### Removed
+- Removed unused dependencies: `pandas`, `geopandas`, `shapely`, `pyyaml`, `ollama`, `requests`
+- Deleted dead code: `services/geo.py`
+
 ## [0.2.0] - 2026-06-10
 
 ### Added
